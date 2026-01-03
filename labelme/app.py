@@ -44,6 +44,9 @@ from labelme.widgets import UniqueLabelQListWidget
 from labelme.widgets import ZoomWidget
 from labelme.widgets import download_ai_model
 
+from labelme.utils.shape import shapes_to_mask
+from PIL import Image
+
 from . import utils
 
 # FIXME
@@ -176,7 +179,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.fileSearch.setPlaceholderText(self.tr("Search Filename"))
         self.fileSearch.textChanged.connect(self.fileSearchChanged)
         self.fileListWidget = QtWidgets.QListWidget()
-        self.fileListWidget.itemSelectionChanged.connect(self.fileSelectionChanged)
+        self.fileListWidget.itemSelectionChanged.connect(self.fileSelectionChanged) # itemselection changes with openfile changes
         fileListLayout = QtWidgets.QVBoxLayout()
         fileListLayout.setContentsMargins(0, 0, 0, 0)
         fileListLayout.setSpacing(0)
@@ -1518,6 +1521,31 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.tr("Error saving label data"), self.tr("<b>%s</b>") % e
             )
             return False
+        
+    def save_mask(self, filename):
+        def format_shape(s):
+            data = s.other_data.copy()
+            data.update(
+                dict(
+                    label=s.label,
+                    points=[(p.x(), p.y()) for p in s.points],
+                    group_id=s.group_id,
+                    description=s.description,
+                    shape_type=s.shape_type,
+                    flags=s.flags,
+                    mask=None
+                    if s.mask is None
+                    else utils.img_arr_to_b64(s.mask.astype(np.uint8)),
+                )
+            )
+            return data
+        
+        shapes = [format_shape(item.shape()) for item in self.labelList]
+        mask = shapes_to_mask(self.image.height(), self.image.width(), shapes)
+        filename = filename.replace(".json", ".jpg")
+        mask = (mask * 255).astype(np.uint8)
+        image = Image.fromarray(mask)
+        image.save(filename)
 
     def duplicateSelectedShape(self):
         self.copySelectedShape()
@@ -2033,6 +2061,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _saveFile(self, filename):
         if filename and self.saveLabels(filename):
+            self.save_mask(filename=filename)
             self.addRecentFile(filename)
             self.setClean()
 

@@ -21,7 +21,7 @@ def polygons_to_mask(img_shape, polygons, shape_type=None):
 
 def shape_to_mask(
     img_shape: tuple[int, ...],
-    points: list[list[float]],
+    points: list[list[float]], # the points making the polygon
     shape_type: Optional[str] = None,
     line_width: int = 10,
     point_size: int = 5,
@@ -54,14 +54,27 @@ def shape_to_mask(
         raise ValueError(f"shape_type={shape_type!r} is not supported.")
     return np.array(mask, dtype=bool)
 
-
-def shapes_to_label(img_shape, shapes, label_name_to_value):
-    cls = np.zeros(img_shape[:2], dtype=np.int32)
-    ins = np.zeros_like(cls)
-    instances = []
+def shapes_to_mask(
+        img_height,
+        img_width,
+        shapes
+):
+    mask = np.zeros((img_height, img_width), dtype=bool)
     for shape in shapes:
         points = shape["points"]
-        label = shape["label"]
+        shape_type = shape.get("shape_type", None)
+        shape_mask = shape_to_mask((img_height, img_width), points, shape_type)
+        mask = np.logical_or(mask, shape_mask)
+    
+    return mask
+
+def shapes_to_label(img_shape, shapes, label_name_to_value):
+    cls = np.zeros(img_shape[:2], dtype=np.int32) # the classes of every pixel
+    ins = np.zeros_like(cls) # instance ID of every pixel
+    instances = []
+    for shape in shapes:
+        points = shape["points"] # points in the shape
+        label = shape["label"] # label of the shape
         group_id = shape.get("group_id")
         if group_id is None:
             group_id = uuid.uuid1()
